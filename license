@@ -1,0 +1,935 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, useScroll, useSpring, AnimatePresence } from 'framer-motion';
+import { 
+  ShieldAlert, Moon, Sun, Menu, X, CheckCircle2, 
+  Circle, Download, BookOpen, AlertTriangle, Info, CheckSquare, Sparkles, Image as ImageIcon, ZoomIn
+} from 'lucide-react';
+
+// --- ДАННЫЕ И КОНТЕНТ ---
+
+const SECTIONS = [
+  { id: 'intro', title: '1. Введение' },
+  { id: 'basics', title: '2. Базовые принципы' },
+  { id: 'licenses', title: '3. Типы лицензий' },
+  { id: 'ai-content', title: '4. ИИ-контент' },
+  { id: 'workflow', title: '5. Порядок работы' },
+  { id: 'errors', title: '6. Ошибки и риски' },
+  { id: 'recommendations', title: '7. Рекомендации' },
+  { id: 'contract', title: '8. Договор с клиентом' },
+  { id: 'checklist', title: '9. Чек-лист' },
+];
+
+const CHECKLIST_ITEMS = [
+  "Вы понимаете сценарий использования ассета",
+  "Проверен тип лицензии и ограничения",
+  "Лицензия скачана и сохранена",
+  "Ассет используется только как часть итогового дизайна",
+  "Клиент проинформирован о лицензионных ограничениях",
+  "ИИ‑контент не применяется для логотипов и брендинга",
+  "Подписка используется только вами",
+  "Распределение ответственности зафиксировано в договоре"
+];
+
+const AUTHORS = [
+  {
+    name: 'Алёна Кондратенко',
+    channel: '@alenkadesigner',
+    link: 'https://t.me/alenkadesigner',
+    image: 'https://i.postimg.cc/QMRG5thd/photo-2025-10-16-14-29-17.jpg'
+  },
+  {
+    name: 'Паша Скворцов',
+    channel: '@skvortsov_slides',
+    link: 'https://t.me/skvortsov_slides',
+    image: 'https://i.postimg.cc/kXw0swqs/photo-2026-02-07-00-17-29.jpg'
+  }
+];
+
+// --- УТИЛИТЫ ---
+
+const getFallbackAvatar = (name) => {
+  const initials = name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
+    
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+    <rect width="128" height="128" fill="#2563EB"/>
+    <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="#ffffff" font-family="system-ui, sans-serif" font-size="50" font-weight="600">${initials}</text>
+  </svg>`;
+  
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+};
+
+// --- КОМПОНЕНТЫ ---
+
+// 1. Индикатор прогресса чтения
+const ProgressBar = () => {
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, {
+    stiffness: 100,
+    damping: 30,
+    restDelta: 0.001
+  });
+
+  return (
+    <motion.div
+      className="fixed top-0 left-0 right-0 h-1.5 bg-blue-600 dark:bg-blue-500 origin-left z-50"
+      style={{ scaleX }}
+    />
+  );
+};
+
+// 2. Юридический блок (Legal Warning)
+const LegalWarning = ({ title = "Важно", children, icon: Icon = ShieldAlert, type = "warning" }) => {
+  const colors = {
+    warning: "border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-900/50 dark:bg-orange-950/20 dark:text-orange-100",
+    info: "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-100",
+    success: "border-green-200 bg-green-50 text-green-900 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-100"
+  };
+
+  const iconColors = {
+    warning: "text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/50",
+    info: "text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50",
+    success: "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50"
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.5 }}
+      className={`my-8 p-6 rounded-2xl border relative overflow-hidden break-inside-avoid ${colors[type]}`}
+    >
+      <div className="absolute -right-4 -top-4 opacity-5 dark:opacity-10 pointer-events-none">
+        <Icon size={120} />
+      </div>
+      <div className="flex items-start gap-4 relative z-10">
+        <div className={`p-2 rounded-lg shrink-0 mt-1 ${iconColors[type]}`}>
+          <Icon size={24} />
+        </div>
+        <div>
+          <h4 className="text-lg font-bold mb-2">{title}</h4>
+          <div className="opacity-90 leading-relaxed space-y-2 text-sm sm:text-base">
+            {children}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// 3. Интерактивный Чек-лист
+const InteractiveChecklist = () => {
+  const [checkedItems, setCheckedItems] = useState(new Set());
+
+  const toggleItem = (index) => {
+    const newChecked = new Set(checkedItems);
+    if (newChecked.has(index)) {
+      newChecked.delete(index);
+    } else {
+      newChecked.add(index);
+    }
+    setCheckedItems(newChecked);
+  };
+
+  const progress = Math.round((checkedItems.size / CHECKLIST_ITEMS.length) * 100);
+
+  return (
+    <div className="my-8 p-6 sm:p-8 bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 break-inside-avoid">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-xl font-bold flex items-center gap-2">
+          <CheckSquare className="text-blue-600 dark:text-blue-400" />
+          Финальная проверка
+        </h3>
+        <span className="text-sm font-medium px-3 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-full">
+          {progress}%
+        </span>
+      </div>
+      
+      <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full mb-8 overflow-hidden">
+        <motion.div 
+          className="bg-blue-600 dark:bg-blue-500 h-full"
+          initial={{ width: 0 }}
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.3 }}
+        />
+      </div>
+
+      <div className="space-y-3">
+        {CHECKLIST_ITEMS.map((item, index) => {
+          const isChecked = checkedItems.has(index);
+          return (
+            <motion.button
+              key={index}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={() => toggleItem(index)}
+              className={`w-full text-left flex items-start gap-4 p-4 rounded-xl border transition-colors ${
+                isChecked 
+                  ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' 
+                  : 'bg-slate-50 border-slate-200 dark:bg-slate-800/50 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600'
+              }`}
+            >
+              <div className="mt-0.5 shrink-0">
+                {isChecked ? (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  >
+                    <CheckCircle2 className="text-blue-600 dark:text-blue-400" size={24} />
+                  </motion.div>
+                ) : (
+                  <Circle className="text-slate-400 dark:text-slate-500" size={24} />
+                )}
+              </div>
+              <span className={`text-sm sm:text-base transition-all duration-300 ${
+                isChecked ? 'text-slate-500 dark:text-slate-400 line-through' : 'text-slate-700 dark:text-slate-200'
+              }`}>
+                {item}
+              </span>
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// 4. Компонент Секции (Обертка для контента)
+const Section = ({ id, title, children }) => (
+  <motion.section
+    id={id}
+    initial={{ opacity: 0, y: 20 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, margin: "-100px" }}
+    transition={{ duration: 0.6 }}
+    className="scroll-mt-24 mb-16"
+  >
+    <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-slate-900 dark:text-white pb-2 border-b border-slate-200 dark:border-slate-800">
+      {title}
+    </h2>
+    <div className="space-y-4 text-slate-700 dark:text-slate-300 text-lg leading-relaxed">
+      {children}
+    </div>
+  </motion.section>
+);
+
+// --- ГЛАВНЫЙ КОМПОНЕНТ APP ---
+
+export default function App() {
+  const [isDark, setIsDark] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState(SECTIONS[0].id);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [zoomedImg, setZoomedImg] = useState(null); // Состояние для увеличенного фото
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDark]);
+
+  // Блокируем скролл фона, если открыто фото
+  useEffect(() => {
+    if (zoomedImg) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [zoomedImg]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const sectionElements = SECTIONS.map(s => document.getElementById(s.id));
+      const currentScrollPos = window.scrollY + 150;
+
+      for (let i = sectionElements.length - 1; i >= 0; i--) {
+        const section = sectionElements[i];
+        if (section && section.offsetTop <= currentScrollPos) {
+          setActiveSection(section.id);
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollTo = (id) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleDownloadPDF = () => {
+    setIsDownloading(true);
+    setZoomedImg(null); // Закрываем увеличенное фото, если оно открыто перед скачиванием
+    
+    if (window.html2pdf) {
+      generatePDF();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+    script.onload = generatePDF;
+    document.body.appendChild(script);
+  };
+
+  const generatePDF = () => {
+    const htmlElement = document.documentElement;
+    const wasDark = htmlElement.classList.contains('dark');
+    if (wasDark) htmlElement.classList.remove('dark');
+
+    const element = document.getElementById('content-to-pdf');
+    const actionButtons = document.getElementById('pdf-action-buttons');
+
+    const originalCss = element.style.cssText;
+    const originalButtonsDisplay = actionButtons ? actionButtons.style.display : '';
+
+    if (actionButtons) actionButtons.style.display = 'none';
+
+    const style = document.createElement('style');
+    style.id = 'pdf-fix-animations';
+    style.innerHTML = `
+      #content-to-pdf * {
+        opacity: 1 !important;
+        transform: none !important;
+        animation: none !important;
+        transition: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+
+    setTimeout(() => {
+      element.style.cssText = 'padding: 40px !important; background: white !important; box-sizing: border-box !important;';
+
+      const pdfWidth = element.offsetWidth;
+      const pdfHeight = element.scrollHeight + 5;
+
+      const opt = {
+        margin: 0,
+        filename: 'Гайд_по_лицензиям_Freepik.pdf',
+        image: { type: 'jpeg', quality: 1 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          windowWidth: document.documentElement.clientWidth,
+          scrollY: 0 
+        },
+        jsPDF: { 
+          unit: 'px', 
+          format: [pdfWidth, pdfHeight], 
+          orientation: 'portrait',
+          hotfixes: ["px_scaling"]
+        }
+      };
+
+      window.html2pdf().set(opt).from(element).save().then(() => {
+        setIsDownloading(false);
+        element.style.cssText = originalCss;
+        if (actionButtons) actionButtons.style.display = originalButtonsDisplay;
+        if (wasDark) htmlElement.classList.add('dark');
+        
+        const injectedStyle = document.getElementById('pdf-fix-animations');
+        if (injectedStyle) injectedStyle.remove();
+      });
+    }, 100);
+  };
+
+  return (
+    <div className={`min-h-screen bg-slate-50 dark:bg-slate-950 font-sans transition-colors duration-300 selection:bg-blue-200 selection:text-blue-900 dark:selection:bg-blue-900 dark:selection:text-blue-100 relative`}>
+      <ProgressBar />
+
+      {/* Шапка (Header) */}
+      <header className="fixed top-0 w-full z-40 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-blue-600 dark:text-blue-400 font-bold text-lg cursor-pointer" onClick={() => window.scrollTo({top:0, behavior: 'smooth'})}>
+            <BookOpen size={24} />
+            <span className="hidden sm:inline">Гайд по лицензиям Freepik</span>
+            <span className="sm:hidden">Freepik Guide</span>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsDark(!isDark)}
+              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300"
+              aria-label="Toggle Theme"
+            >
+              {isDark ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            <button
+              className="md:hidden p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Мобильное меню */}
+      {isMobileMenuOpen && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          className="md:hidden fixed top-16 left-0 right-0 bottom-0 bg-white dark:bg-slate-950 z-30 p-4 overflow-y-auto"
+        >
+          <nav className="flex flex-col gap-2">
+            {SECTIONS.map((section) => (
+              <button
+                key={section.id}
+                onClick={() => scrollTo(section.id)}
+                className={`text-left px-4 py-3 rounded-xl transition-colors ${
+                  activeSection === section.id 
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 font-medium' 
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'
+                }`}
+              >
+                {section.title}
+              </button>
+            ))}
+          </nav>
+        </motion.div>
+      )}
+
+      {/* Основной контент */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20 flex gap-12">
+        
+        {/* Боковая навигация (Desktop) */}
+        <aside className="hidden md:block w-64 shrink-0">
+          <div className="sticky top-28">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4 px-3">
+              Содержание
+            </h3>
+            <nav className="flex flex-col gap-1 relative border-l-2 border-slate-100 dark:border-slate-800 ml-3">
+              {SECTIONS.map((section) => (
+                <button
+                  key={section.id}
+                  onClick={() => scrollTo(section.id)}
+                  className={`text-left pl-4 py-2 text-sm transition-all relative ${
+                    activeSection === section.id
+                      ? 'text-blue-600 dark:text-blue-400 font-medium'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {/* Индикатор активного пункта */}
+                  {activeSection === section.id && (
+                    <motion.div 
+                      layoutId="activeIndicator"
+                      className="absolute left-[-2px] top-0 bottom-0 w-0.5 bg-blue-600 dark:bg-blue-400"
+                    />
+                  )}
+                  {section.title}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </aside>
+
+        {/* Статья */}
+        <main id="content-to-pdf" className="flex-1 max-w-3xl protect-content">
+          
+          {/* Hero Секция */}
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7 }}
+            className="mb-16 pt-8 md:pt-16"
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-sm font-medium mb-6">
+              Методическое руководство интенсива
+            </div>
+            <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-6 leading-tight">
+              Авторские права и лицензии при работе с Freepik
+            </h1>
+            
+            <div className="flex flex-col sm:flex-row gap-4 mb-8 break-inside-avoid">
+              {AUTHORS.map((author, idx) => (
+                <a 
+                  key={idx}
+                  href={author.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-1 items-center gap-4 p-4 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 shadow-sm hover:shadow-md transition-all group"
+                >
+                  <img 
+                    src={author.image} 
+                    alt={author.name} 
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = getFallbackAvatar(author.name);
+                    }}
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover border-2 border-slate-100 dark:border-slate-700 group-hover:scale-105 transition-transform bg-slate-100 dark:bg-slate-800"
+                  />
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white leading-tight mb-0.5">{author.name}</h4>
+                    <span className="text-blue-600 dark:text-blue-400 text-sm font-medium">{author.channel}</span>
+                  </div>
+                </a>
+              ))}
+            </div>
+
+            <div id="pdf-action-buttons" className="flex flex-wrap gap-4">
+              <button 
+                onClick={() => scrollTo('intro')}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors shadow-sm shadow-blue-600/20"
+              >
+                Начать чтение
+              </button>
+              
+              <button 
+                onClick={handleDownloadPDF}
+                disabled={isDownloading}
+                className={`px-6 py-3 rounded-xl font-medium transition-colors border shadow-sm flex items-center gap-2 ${
+                  isDownloading 
+                    ? 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 cursor-not-allowed'
+                    : 'bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                {isDownloading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    Формируем PDF...
+                  </>
+                ) : (
+                  <>
+                    <Download size={18} />
+                    Скачать PDF
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+
+          <Section id="intro" title="1. Введение: зачем дизайнеру понимать авторское право">
+            <p>Работа с графическими стоковыми платформами стала стандартной частью профессиональной деятельности дизайнеров, иллюстраторов, маркетологов и специалистов по визуальному контенту. Использование готовых изображений, иконок, шаблонов и иллюстраций позволяет значительно ускорять производство проектов, однако одновременно накладывает юридические ограничения.</p>
+            <p>Каждый графический элемент, размещённый на стоковой платформе, является объектом интеллектуальной собственности. Его использование допускается только на основании <strong>лицензии</strong> — специального разрешения правообладателя.</p>
+            
+            <LegalWarning title="Отсутствие понимания условий лицензирования приводит к нарушениям:" icon={AlertTriangle} type="warning">
+              <ul className="list-disc pl-5 mt-2 space-y-1">
+                <li>использованию изображений без законных оснований;</li>
+                <li>передаче заказчику материалов, которыми он не вправе распоряжаться;</li>
+                <li>применению ассетов в рекламе или коммерческих проектах сверх разрешённого объёма;</li>
+                <li>конфликтам между дизайнером и заказчиком при публикации проекта.</li>
+              </ul>
+            </LegalWarning>
+
+            <p className="mt-4">Для начинающего специалиста ключевая задача — научиться воспринимать стоковый контент не как «скачанные картинки», а как лицензируемые объекты с установленным режимом использования.</p>
+            <p className="text-sm italic text-slate-500 dark:text-slate-400 mt-2">Настоящее руководство объясняет правила работы со стоковыми материалами на примере сервиса Freepik с учётом практики работы дизайнеров и базовых принципов российского законодательства об авторском праве.</p>
+          </Section>
+
+          <Section id="basics" title="2. Базовые принципы">
+            <p>Для работы со стоками достаточно усвоить несколько ключевых принципов применительно к стоковому контенту.</p>
+            
+            <div className="grid sm:grid-cols-2 gap-4 mt-6">
+              <div className="bg-white dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 break-inside-avoid">
+                <h4 className="font-bold text-slate-900 dark:text-white mb-2">2.1. Что защищается авторским правом</h4>
+                <p className="text-sm">В рамках законодательства РФ объектами признаются: иллюстрации, фотографии, шрифты, графические композиции, шаблоны дизайна, 3D‑модели, элементы интерфейсов. Сам факт размещения материала в интернете не означает его свободное использование.</p>
+              </div>
+              <div className="bg-white dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 break-inside-avoid">
+                <h4 className="font-bold text-slate-900 dark:text-white mb-2">2.2. Лицензия как основной способ</h4>
+                <p className="text-sm">При скачивании ассета пользователь не приобретает сам объект интеллектуальной собственности. Он получает право использовать его в пределах определённых условий. Дизайнер передаёт заказчику не исходный стоковый объект, а результат своей работы.</p>
+              </div>
+              <div className="bg-white dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 break-inside-avoid">
+                <h4 className="font-bold text-slate-900 dark:text-white mb-2">2.3. Разграничение прав</h4>
+                <p className="text-sm">Дизайнер отвечает за законность использования ассета на момент работы. Заказчик отвечает за дальнейшее использование результата проекта. Если заказчик планирует массовую рекламу или мерч, он обязан проверить необходимость дополнительных лицензий.</p>
+              </div>
+              <div className="bg-white dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 break-inside-avoid">
+                <h4 className="font-bold text-slate-900 dark:text-white mb-2">2.4. Документальное подтверждение</h4>
+                <p className="text-sm">Скачивание ассета сопровождается формированием лицензионного документа. Лицензия существует отдельно от файла изображения. При споре ключевым доказательством выступает именно лицензия, а не сам файл.</p>
+              </div>
+            </div>
+          </Section>
+
+          <Section id="licenses" title="3. Типы лицензий Freepik и их логика">
+            <p>Платформа Freepik использует модель лицензирования, разделяющую доступ к материалам по условиям использования и способу оплаты.</p>
+            
+            <h3 className="text-xl font-bold mt-8 mb-4 text-slate-900 dark:text-white">3.1. Бесплатная лицензия</h3>
+            <ul className="list-disc pl-5 space-y-2 mb-6">
+              <li>допускается коммерческое использование;</li>
+              <li>в большинстве случаев <strong>требуется указание авторства</strong>;</li>
+              <li>запрещается распространение ассета как самостоятельного продукта;</li>
+              <li>ограничены способы передачи третьим лицам.</li>
+            </ul>
+
+            <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">3.2. Платная (Premium) лицензия</h3>
+            <ul className="list-disc pl-5 space-y-2 mb-4">
+              <li>атрибуция не требуется;</li>
+              <li>допускается коммерческое применение;</li>
+              <li>увеличивается перечень допустимых проектов.</li>
+            </ul>
+            <p className="mb-6">Важно учитывать, что лицензия привязана к аккаунту пользователя, а не к заказчику проекта.</p>
+
+            <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">3.3. Запрет совместного использования (shared subscription)</h3>
+            <p className="mb-4">Подписка предназначена для индивидуального использования владельцем аккаунта либо сотрудниками одной организации. Недопустимыми считаются: складчина, совместная покупка подписки несколькими фрилансерами, передача логина и пароля.</p>
+            <p className="text-red-600 dark:text-red-400 font-medium mb-6">Такие действия могут привести к блокировке аккаунта и утрате лицензий на ранее скачанные материалы.</p>
+
+            <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">3.4. Коммерческое использование и его пределы</h3>
+            <p className="mb-4">Коммерческим считается любое использование, связанное с продвижением бизнеса, получением прибыли либо рекламой. Даже при наличии подписки могут существовать ограничения:</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>использование в товарных знаках;</li>
+              <li>создание логотипов;</li>
+              <li>массовое тиражирование продукции.</li>
+            </ul>
+          </Section>
+
+          <Section id="ai-content" title="4. ИИ-контент: правовой режим и ограничения">
+            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 p-6 sm:p-8 rounded-3xl border border-indigo-100 dark:border-indigo-900 mb-8 relative overflow-hidden break-inside-avoid">
+              <div className="absolute top-0 right-0 p-6 opacity-10">
+                <Sparkles size={100} />
+              </div>
+              <div className="relative z-10">
+                <p className="mb-6">Платформа Freepik предоставляет доступ к материалам, созданным с использованием искусственного интеллекта. Такой контент имеет особый правовой режим, который требует повышенного внимания.</p>
+
+                <h4 className="font-bold text-lg text-indigo-900 dark:text-indigo-100 mb-2">4.1. Особенности статуса ИИ-контента</h4>
+                <ul className="list-disc pl-5 mb-6 space-y-1">
+                  <li>пользователь не приобретает исключительные права на ИИ‑контент;</li>
+                  <li>право использования ограничивается условиями лицензии Freepik;</li>
+                  <li>платформа не гарантирует уникальность изображения в абсолютном смысле.</li>
+                </ul>
+
+                <h4 className="font-bold text-lg text-indigo-900 dark:text-indigo-100 mb-2">4.2. Жесткие ограничения</h4>
+                <p className="mb-2">При работе с ИИ‑контентом действуют дополнительные ограничения. Как правило, запрещается:</p>
+                <ul className="list-disc pl-5 mb-6 space-y-1 text-red-700 dark:text-red-400 font-medium">
+                  <li>использовать ИИ‑контент в качестве логотипов, товарных знаков или элементов фирменного стиля;</li>
+                  <li>регистрировать такие изображения как объекты интеллектуальной собственности;</li>
+                  <li>использовать ИИ‑контент для мерча, массового тиражирования или продукции «по требованию»;</li>
+                  <li>предоставлять ИИ‑контент клиенту как самостоятельный файл.</li>
+                </ul>
+
+                <h4 className="font-bold text-lg text-indigo-900 dark:text-indigo-100 mb-2">4.3. Ответственность и рекомендации</h4>
+                <p>Дизайнер обязан самостоятельно оценивать допустимость сценария использования. В учебных и демонстрационных проектах ИИ‑контент может использоваться свободнее, но при работе для клиентов рекомендуется: <strong>чётко фиксировать, что материал сгенерирован ИИ</strong>, и не строить на нём юридически значимые элементы проекта.</p>
+              </div>
+            </div>
+          </Section>
+
+          <Section id="workflow" title="5. Порядок корректной работы">
+            <p>Работа со стоковым контентом должна рассматриваться как управляемый процесс, а не как разовое скачивание файлов. Алгоритм, минимизирующий правовые риски:</p>
+            
+            <div className="space-y-4 mt-6">
+              {[
+                {
+                  title: "Определение сценария использования",
+                  desc: "До скачивания файла необходимо понять: будет ли проект коммерческим, используется ли контент для клиента, предполагается ли публикация, реклама, печать или тиражирование."
+                },
+                {
+                  title: "Проверка типа контента и лицензии",
+                  desc: "Следует убедиться: платная или бесплатная категория, нужна ли атрибуция, не является ли это ИИ-контентом с жесткими запретами (например, запрет на логотипы)."
+                },
+                {
+                  title: "Скачивание ассета и лицензии",
+                  desc: "Скачивайте ассет и лицензию (License Certificate) одновременно и сохраняйте их в одной папке проекта с единым принципом именования файлов."
+                },
+                {
+                  title: "Хранение лицензии",
+                  desc: "Храните лицензии локально или в облачном архиве проекта. Не полагайтесь на возможность повторного скачивания из личного кабинета."
+                },
+                {
+                  title: "Использование ассета в проекте",
+                  desc: "Контент должен использоваться как часть итогового дизайна, в интегрированном виде. Редактирование не отменяет лицензионных ограничений."
+                },
+                {
+                  title: "Передача результата заказчику",
+                  desc: "Передавайте финальные файлы дизайна. Заказчику следует разъяснять, что дальнейшее масштабное использование может потребовать дополнительных лицензий."
+                },
+                {
+                  title: "Распределение ответственности",
+                  desc: "Дизайнер отвечает за законность на момент выполнения работ, а заказчик — за дальнейшее использование результата. Фиксируйте эту логику в договоре."
+                },
+                {
+                  title: "Запрет коллективного использования",
+                  desc: "Использование подписки «в складчину» недопустимо. Это ведет к невозможности подтвердить правомерность и грозит блокировкой."
+                }
+              ].map((step, index) => (
+                <div key={index} className="flex gap-4 p-4 rounded-xl bg-slate-100 dark:bg-slate-800/50 break-inside-avoid">
+                  <div className="shrink-0 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">{index + 1}</div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white">{step.title}</h4>
+                    <p className="text-sm mt-1">{step.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Визуальный блок: Где хранятся лицензии */}
+            <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-800 break-inside-avoid">
+              <h3 className="text-2xl font-bold mb-6 text-slate-900 dark:text-white flex items-center gap-3">
+                <ImageIcon className="text-blue-600 dark:text-blue-400" size={28} />
+                Где хранятся лицензии на скачанные файлы
+              </h3>
+              
+              {/* Изменено: теперь фото располагаются в одну колонку, чтобы быть крупнее, 
+                  плюс добавлен эффект увеличения при клике */}
+              <div className="flex flex-col gap-8">
+                
+                {/* Шаг 1 */}
+                <div 
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col group cursor-zoom-in"
+                  onClick={() => setZoomedImg("https://i.postimg.cc/bw6SBLt4/Group-11-(1).png")}
+                >
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                    <p className="font-semibold text-slate-800 dark:text-slate-200 text-base flex items-center gap-3">
+                      <span className="flex shrink-0 items-center justify-center w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-sm">1</span>
+                      Главная страница — Профиль — Настройки
+                    </p>
+                  </div>
+                  <div className="relative p-6 flex-1 flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/20">
+                    <img 
+                      src="https://i.postimg.cc/bw6SBLt4/Group-11-(1).png" 
+                      alt="Главная страница - Профиль - Настройки" 
+                      className="w-full h-auto max-h-[500px] object-contain rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 dark:group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <div className="bg-white/90 dark:bg-slate-800/90 p-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm transform scale-95 group-hover:scale-100">
+                        <ZoomIn className="text-slate-700 dark:text-slate-300" size={28} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Шаг 2 */}
+                <div 
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col group cursor-zoom-in"
+                  onClick={() => setZoomedImg("https://i.postimg.cc/LsY50SRH/Group-12.png")}
+                >
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                    <p className="font-semibold text-slate-800 dark:text-slate-200 text-base flex items-center gap-3">
+                      <span className="flex shrink-0 items-center justify-center w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-sm">2</span>
+                      Стоковые скачивания — Скачать лицензию
+                    </p>
+                  </div>
+                  <div className="relative p-6 flex-1 flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/20">
+                    <img 
+                      src="https://i.postimg.cc/LsY50SRH/Group-12.png" 
+                      alt="Стоковые скачивания - Скачать лицензию" 
+                      className="w-full h-auto max-h-[500px] object-contain rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 dark:group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <div className="bg-white/90 dark:bg-slate-800/90 p-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm transform scale-95 group-hover:scale-100">
+                        <ZoomIn className="text-slate-700 dark:text-slate-300" size={28} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Шаг 3 */}
+                <div 
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col group cursor-zoom-in"
+                  onClick={() => setZoomedImg("https://i.postimg.cc/6qppn4WX/Group-21.png")}
+                >
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                    <p className="font-semibold text-slate-800 dark:text-slate-200 text-base flex items-center gap-3">
+                      <span className="flex shrink-0 items-center justify-center w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-sm">3</span>
+                      Как выглядит лицензия на файлы Freepik
+                    </p>
+                  </div>
+                  <div className="relative p-6 flex-1 flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/20">
+                    <img 
+                      src="https://i.postimg.cc/6qppn4WX/Group-21.png" 
+                      alt="Как выглядит лицензия на файлы Freepik" 
+                      className="w-full h-auto max-h-[500px] object-contain rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 dark:group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <div className="bg-white/90 dark:bg-slate-800/90 p-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm transform scale-95 group-hover:scale-100">
+                        <ZoomIn className="text-slate-700 dark:text-slate-300" size={28} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </Section>
+
+          <Section id="errors" title="6. Типичные ошибки пользователей">
+            <ul className="space-y-6 list-none p-0">
+              <li className="break-inside-avoid">
+                <h4 className="text-lg font-bold text-red-600 dark:text-red-400 mb-2">6.1. Использование ассетов вне заявленного сценария</h4>
+                <p>Скачивание контента без предварительного анализа. Например, использование ИИ-контента для логотипов или бесплатного ассета без атрибуции в коммерции. <strong>Риск:</strong> претензии правообладателей, блокировка аккаунта.</p>
+              </li>
+              <li className="break-inside-avoid">
+                <h4 className="text-lg font-bold text-red-600 dark:text-red-400 mb-2">6.2. Отсутствие сохранённой лицензии</h4>
+                <p>Пользователь скачивает ассет, но не сохраняет PDF-лицензию, полагаясь на доступ к аккаунту в будущем. <strong>Риск:</strong> отсутствие лицензии = отсутствие доказательств правомерного использования.</p>
+              </li>
+              <li className="break-inside-avoid">
+                <h4 className="text-lg font-bold text-red-600 dark:text-red-400 mb-2">6.3. Передача клиенту исходных файлов</h4>
+                <p>Передача архивов со стоковым контентом, наборов иконок или оригинальных файлов ассетов. <strong>Риск:</strong> это может рассматриваться как незаконное распространение лицензируемого контента.</p>
+              </li>
+              <li className="break-inside-avoid">
+                <h4 className="text-lg font-bold text-red-600 dark:text-red-400 mb-2">6.4. Коллективное использование подписки</h4>
+                <p>Использование одной подписки несколькими лицами («в складчину»). <strong>Риск:</strong> невозможность определить законного пользователя, утрата юридической силы лицензий и отказ в защите при претензиях.</p>
+              </li>
+              <li className="break-inside-avoid">
+                <h4 className="text-lg font-bold text-red-600 dark:text-red-400 mb-2">6.5. Неправильная работа с ИИ‑контентом</h4>
+                <p>Попытка регистрации логотипа на базе ИИ‑изображения или передача ИИ‑контента клиенту без пояснений. <strong>Риск:</strong> уязвимость проекта с точки зрения интеллектуальных прав.</p>
+              </li>
+            </ul>
+          </Section>
+
+          <Section id="recommendations" title="7. Рекомендации по безопасной работе">
+            <div className="bg-blue-600 text-white rounded-3xl p-6 sm:p-8 shadow-lg break-inside-avoid">
+              <ul className="space-y-4">
+                <li className="flex items-start gap-3">
+                  <CheckCircle2 className="shrink-0 text-blue-300 mt-1" size={20} />
+                  <div>
+                    <strong className="block mb-1">Документирование всех этапов</strong>
+                    <span className="text-blue-100 text-sm">Сохраняйте лицензии, фиксируйте дату скачивания, храните ассеты в рамках конкретного проекта. Это формирует доказательственную базу.</span>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle2 className="shrink-0 text-blue-300 mt-1" size={20} />
+                  <div>
+                    <strong className="block mb-1">Прозрачность с клиентом</strong>
+                    <span className="text-blue-100 text-sm">Уведомляйте об ограничениях использования и о необходимости дополнительных лицензий при расширении (печать, мерч).</span>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle2 className="shrink-0 text-blue-300 mt-1" size={20} />
+                  <div>
+                    <strong className="block mb-1">Осторожность при масштабных проектах</strong>
+                    <span className="text-blue-100 text-sm">Чем выше масштаб использования, тем выше требования. При сомнениях избегайте ИИ-контента и выбирайте минимально рискованные сценарии.</span>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle2 className="shrink-0 text-blue-300 mt-1" size={20} />
+                  <div>
+                    <strong className="block mb-1">Разграничение ответственности</strong>
+                    <span className="text-blue-100 text-sm">Фиксируйте в договоре: дизайнер отвечает за законность на этапе работ, заказчик — за дальнейшее использование результата.</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </Section>
+
+          <Section id="contract" title="8. Специальный пункт в договоре">
+            <p className="mb-4">При работе с клиентами (для самозанятых, ИП, фрилансеров) рекомендуется заранее закреплять распределение ответственности. По российскому праву (ГК РФ) стороны вправе распределить риски договором.</p>
+            
+            <LegalWarning title="Рекомендуемая формулировка" type="info" icon={Info}>
+              <p className="mb-3">
+                «Исполнитель уведомляет Заказчика о том, что при выполнении работ могут использоваться изображения, иллюстрации, иконки, шрифты и иные объекты, охраняемые авторским правом и распространяемые на основании лицензионных соглашений третьих лиц.
+              </p>
+              <p className="mb-3">
+                Исполнитель передаёт Заказчику права использования результата работ в объёме, необходимом для целей договора, в пределах условий соответствующих лицензий. Передача исключительных прав на сами лицензионные материалы не осуществляется, если иное прямо не предусмотрено условиями лицензии.
+              </p>
+              <p className="mb-3">
+                Заказчик подтверждает, что проинформирован о наличии лицензионных ограничений и обязуется соблюдать их при любом дальнейшем использовании результата работ. В случае если предполагаемое использование выходит за рамки стандартных условий лицензии, Заказчик самостоятельно приобретает необходимые дополнительные права.
+              </p>
+              <p>
+                Исполнитель не несёт ответственности за использование Заказчиком результата работ с нарушением лицензионных условий третьих лиц при условии, что Заказчик был надлежащим образом уведомлён о лицензионной природе использованных материалов.»
+              </p>
+            </LegalWarning>
+
+            <div className="mt-4 p-4 bg-slate-100 dark:bg-slate-800 rounded-xl text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 break-inside-avoid">
+              <strong>Практический комментарий:</strong>
+              <ul className="list-disc pl-5 mt-2 space-y-1">
+                <li>этот пункт не освобождает дизайнера от обязанности работать легально;</li>
+                <li>он защищает от претензий, связанных с дальнейшими действиями клиента;</li>
+                <li>формулировка соответствует стандартной практике и логике российского гражданского права.</li>
+              </ul>
+            </div>
+          </Section>
+
+          <Section id="checklist" title="9. Чек-лист и итоги">
+            <p className="mb-6">Перед использованием контента Freepik убедитесь, что вы разобрались со всеми пунктами:</p>
+            
+            <InteractiveChecklist />
+            
+            <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-800 break-inside-avoid">
+              <h3 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">Итог</h3>
+              <p className="text-lg text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                Работа со стоковым контентом — это не формальность, а элемент профессиональной ответственности дизайнера. Грамотное соблюдение лицензий, документирование и прозрачность во взаимодействии с клиентом позволяют снижать правовые риски, защищать себя как исполнителя и выстраивать устойчивую профессиональную практику.
+              </p>
+            </div>
+          </Section>
+
+          {/* Новый блок с авторами (дублирование с новым дизайном) */}
+          <div className="mt-16 pt-10 border-t border-slate-200 dark:border-slate-800 break-inside-avoid">
+            <h3 className="text-2xl font-bold mb-8 text-slate-900 dark:text-white text-center">Авторы методички</h3>
+            <div className="grid sm:grid-cols-2 gap-6">
+              {AUTHORS.map((author, idx) => (
+                <a 
+                  key={`footer-${idx}`}
+                  href={author.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center text-center gap-4 p-6 rounded-3xl bg-white dark:bg-slate-800 border-2 border-transparent hover:border-blue-500 dark:hover:border-blue-400 shadow-sm hover:shadow-xl transition-all duration-300 group"
+                >
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-blue-500 rounded-full blur-md opacity-0 group-hover:opacity-40 transition-opacity duration-300"></div>
+                    <img 
+                      src={author.image} 
+                      alt={author.name} 
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = getFallbackAvatar(author.name);
+                      }}
+                      className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 border-white dark:border-slate-700 shadow-md group-hover:scale-105 transition-transform duration-300 bg-slate-100 dark:bg-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xl text-slate-900 dark:text-white mb-2">{author.name}</h4>
+                    <span className="inline-flex items-center justify-center px-4 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
+                      {author.channel}
+                    </span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+
+        </main>
+      </div>
+
+      {/* Модальное окно для полноэкранного просмотра картинок */}
+      <AnimatePresence>
+        {zoomedImg && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-sm p-4 sm:p-8 cursor-zoom-out"
+            onClick={() => setZoomedImg(null)}
+          >
+            <button
+              className="absolute top-4 right-4 sm:top-8 sm:right-8 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors backdrop-blur-md"
+              onClick={() => setZoomedImg(null)}
+            >
+              <X size={28} />
+            </button>
+            <motion.img
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              src={zoomedImg}
+              alt="Скриншот в полном размере"
+              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl cursor-default"
+              onClick={(e) => e.stopPropagation()} // предотвращаем закрытие, если кликнули прямо по самой картинке
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Подвал (Footer) */}
+      <footer className="bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 py-8 text-center text-slate-500 dark:text-slate-400 mt-auto break-inside-avoid">
+        <p className="flex items-center justify-center flex-wrap gap-1.5 text-base mb-2 font-medium">
+          Создано с <span className="text-red-500 text-lg">❤️</span> авторами: Алёна Кондратенко & Паша Скворцов
+        </p>
+        <p className="text-sm">© 2026 Все права защищены</p>
+      </footer>
+    </div>
+  );
+}
